@@ -31,8 +31,8 @@
 #define MAP_VERTEX_WIDTH 6
 #define MAP_REGION_HEIGHT 9
 #define MAP_REGION_WIDTH 5
-#define VACANT_VERTEX_SIZE sizeof(int) * 6 * 11
-#define VACANT_ARC_SIZE sizeof(int) * 6 * 10
+#define VERTEX_SIZE sizeof(int) * MAP_VERTEX_HEIGHT * MAP_VERTEX_HEIGHT
+#define ARC_SIZE sizeof(int) * MAP_ARC_HEIGHT * MAP_ARC_WIDTH
 
 #define STARTING_TURN_NUM -1
 #define STARTING_KPI 20
@@ -113,39 +113,13 @@ typedef struct _game {
     // (y axis then x axis)
     int vertices[MAP_VERTEX_HEIGHT][MAP_VERTEX_WIDTH];
     int arcs[MAP_ARC_HEIGHT][MAP_ARC_WIDTH];
-    // regions are referenced by their top half
-    /* for example:
-    *        0 1 2 3 4
-    *          R*-*
-    *    0      | |
-    *         *-* *-*
-    *    1    | | | |
-    *       *-* *-* *-*P
-    *    2  | | | | | |
-    *      T* *-* *-* *
-    *    3  | | | | | |
-    *       *-* *-* *-*
-    *    4  | | | | | |
-    *       * *-* *-* *
-    *    5  | | | | | |
-    *       *-* *-* *-*
-    *    6  | | | | | |
-    *       * *-* *-* *T
-    *    7  | | | | | |
-    *      P*-* *-* *-*
-    *    8    | | | |
-    *         *-* *-*
-    *           | |
-    *           *-*R
-    * so the bottom region is (8,2)
-    * (y then x axis, once again)
-    */
     region regions[MAP_REGION_HEIGHT][MAP_REGION_WIDTH];
 } game;
 
 static int isValidRegion(int x, int y);
 static int isValidVertex(int x, int y);
 static int isValidARC(int x, int y);
+static int isValidAction(Game g, action a);
 static int hasMostARCgrants(Game g, int player);
 static int playerOwnsARCAdjacentTo(Game g, coord arc, int player);
 static int playerOwnsVertexBorderingARC(Game g, coord arc, int player);
@@ -159,6 +133,14 @@ static region getRegionForCoordinates(Game g, int x, int y);
 static coord getVertexCoordinateFromPath(path p);
 static coord getCoordinateFromPath(path p, int getArcCoord);
 static coord getARCCoordinateFromPath(path p);
+
+#ifdef DODGY_MAIN
+int main(void) {
+    coord c = getVertexCoordinateFromPath("RRLRLLLRLLL");
+    assert(c.x == 2 && c.y == 3);
+    return 0;
+}
+#endif
 
 // Game functions implementing Game.h
 Game newGame(int discipline[], int dice[]) {
@@ -216,8 +198,8 @@ Game newGame(int discipline[], int dice[]) {
         x++;
     }
 
-    memset(g->vertices, VACANT_VERTEX, VACANT_VERTEX_SIZE);
-    memset(g->arcs, VACANT_ARC, VACANT_ARC_SIZE);
+    memset(g->vertices, VACANT_VERTEX, VERTEX_SIZE);
+    memset(g->arcs, VACANT_ARC, ARC_SIZE);
 
     // player 1 starting points
     updateVertex(g, 2, 0, CAMPUS_A);
@@ -238,6 +220,9 @@ void disposeGame(Game g) {
 }
 
 void makeAction(Game g, action a) {
+    if (!isValidAction(g, a)) {
+        printf("ERROR: INVALID ACTION\n");
+    }
     int actionType = a.actionCode;
     int currentPlayer = getWhoseTurn(g);
     if (actionType == BUILD_CAMPUS) {
@@ -245,6 +230,7 @@ void makeAction(Game g, action a) {
         g->students[currentPlayer-1][STUDENT_BPS]--;
         g->students[currentPlayer-1][STUDENT_MJ]--;
         g->students[currentPlayer-1][STUDENT_MTV]--;
+
         coord pos = getVertexCoordinateFromPath(a.destination);
         updateVertex(g, pos.x, pos.y, currentPlayer);
         g->campuses[currentPlayer-1]++;
@@ -253,6 +239,7 @@ void makeAction(Game g, action a) {
     } else if (actionType == BUILD_GO8) {
         g->students[currentPlayer-1][STUDENT_MJ] -= 2;
         g->students[currentPlayer-1][STUDENT_MMONEY] -= 3;
+
         coord pos = getVertexCoordinateFromPath(a.destination);
         updateVertex(g, pos.x, pos.y, currentPlayer+3);
         g->groupOfEights[currentPlayer-1]++;
@@ -262,6 +249,7 @@ void makeAction(Game g, action a) {
     } else if (actionType == OBTAIN_ARC) {
         g->students[currentPlayer-1][STUDENT_BPS]--;
         g->students[currentPlayer-1][STUDENT_BQN]--;
+
         coord path = getARCCoordinateFromPath(a.destination);
         updateArc(g, path.x, path.y, currentPlayer);
         g->arcGrants[currentPlayer-1]++;
@@ -271,6 +259,7 @@ void makeAction(Game g, action a) {
         g->students[currentPlayer-1][STUDENT_MJ]--;
         g->students[currentPlayer-1][STUDENT_MTV]--;
         g->students[currentPlayer-1][STUDENT_MMONEY]--;
+
         if (actionType == OBTAIN_PUBLICATION) {
             g->publications[currentPlayer-1]++;
             updateKPI(g, currentPlayer, OBTAIN_PUBLICATION);
@@ -399,9 +388,9 @@ int getARC(Game g, path pathToEdge) {
 int isLegalAction(Game g, action a) {
     int isLegal = FALSE;
     int player = getWhoseTurn(g);
-    printf("I'm inside isLegalAction\n");
+    //printf("I'm inside isLegalAction\n");
     if (getTurnNumber(g) != -1) {
-        printf("turn number ok\n");
+        //printf("turn number ok\n");
         int actionType = a.actionCode;
         if (actionType == PASS) {
             isLegal = TRUE;
@@ -441,29 +430,38 @@ int isLegalAction(Game g, action a) {
                 }
             }
         } else if (actionType == OBTAIN_ARC) {
-            printf("I AM ABOUT TO RUN THIS THING\n");
+            //printf("I AM ABOUT TO RUN THIS THING\n");
             coord arc = getARCCoordinateFromPath(a.destination);
-            printf("testing coords...\n");
+            //printf("testing coords...\n");
             if (arc.x >= 0 && arc.y >= 0) {
                 // the player has an arc leading to this pointor a
                 // campus adjacent to the arc and that the arc is not
                 // occupied
-                printf("coords are ok\n");
+                #ifdef DEBUG
+                printf("coords are ok - %d, %d\n", arc.x, arc.y);
+                #endif
                 if ((playerOwnsARCAdjacentTo(g, arc, player) ||
                         playerOwnsVertexBorderingARC(g, arc,
                         player))) {
+                    #ifdef DEBUG
                     printf("adjacents ok\n");
+                    #endif
                     if (getARC(g, a.destination) == VACANT_ARC) {
+                        #ifdef DEBUG
                         printf("arc is vacant\n");
+                        #endif
                         // check the player has enough students
                         if (getStudents(g, player, STUDENT_BQN) >= 1 &&
                                 getStudents(g, player, STUDENT_BPS) >= 1) {
+                            #ifdef DEBUG
                             printf("students are ok\n");
+                            #endif
                             isLegal = TRUE;
                         }
-                    } else {
-                        printf("arc is not vacant: occupied by %d\n", getARC(g, a.destination));
-                    }
+                    } /*else {
+                        printf("arc is not vacant: occupied by %d\n",
+                                getARC(g, a.destination));
+                    }*/
                 }
             }
         } else if (actionType == START_SPINOFF) {
@@ -475,7 +473,8 @@ int isLegalAction(Game g, action a) {
         } else if (actionType == RETRAIN_STUDENTS) {
             int from = a.disciplineFrom;
             int to = a.disciplineTo;
-            if (from >= STUDENT_THD && from <= STUDENT_MMONEY && to >= STUDENT_THD && to <= STUDENT_MMONEY) {
+            if (from >= STUDENT_THD && from <= STUDENT_MMONEY &&
+                    to >= STUDENT_THD && to <= STUDENT_MMONEY) {
                 int exchangeRate = getExchangeRate(g, player, from, to);
                 if (from != STUDENT_THD &&
                         getStudents(g, player, from) >= exchangeRate) {
@@ -667,7 +666,7 @@ static void updateArc(Game g, int x, int y, int newValue) {
 
     // TODO assert newValue is valid
     g->arcs[y][x] = newValue;
-    printf("SET ARC %d,%d TO %d\n", x, y, newValue);
+    //printf("SET ARC %d,%d TO %d\n", x, y, newValue);
 }
 static void updateVertex(Game g, int x, int y, int newValue) {
     assert(y < MAP_VERTEX_HEIGHT);
@@ -722,6 +721,24 @@ static int isValidARC(int x, int y) {
     return valid;
 }
 
+static int isValidAction(Game g, action a) {
+    int isValid = FALSE;
+
+    int actionType = a.actionCode;
+    if (actionType == PASS ||
+            actionType == BUILD_CAMPUS ||
+            actionType == BUILD_GO8 ||
+            actionType == OBTAIN_ARC ||
+            actionType == RETRAIN_STUDENTS) {
+        isValid = isLegalAction(g, a);
+    } else if (actionType == OBTAIN_IP_PATENT ||
+            actionType == OBTAIN_PUBLICATION) {
+        action spinoff = {START_SPINOFF, "", 0, 0};
+        isValid = isLegalAction(g, spinoff);
+    }
+    return isValid;
+}
+
 static coord getVertexCoordinateFromPath(path p) {
     return getCoordinateFromPath(p, FALSE);
 }
@@ -732,7 +749,9 @@ static coord getARCCoordinateFromPath(path p) {
 
 static coord getCoordinateFromPath(path p, int getArcCoord) {
     int len = (int) strlen(p);
+    #ifdef DEBUG
     printf("\n\n====== NEW PATH '%s' =====\n\n", p);
+    #endif
     int i = 0;
     coord result;
     result.x = 2;
@@ -741,9 +760,11 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
     prevStop.x = 1;
     prevStop.y = -1;
     while (i < len && isValidVertex(result.x, result.y)) {
+        #ifdef DEBUG
         printf(" %03d of %03d - currently at (%d, %d) - previously"
                 "(%d, %d) ", i+1, len, result.x, result.y, prevStop.x,
                 prevStop.y);
+        #endif
         char step = p[i];
         int newX = result.x;
         int newY = result.y;
@@ -755,7 +776,9 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                 step = 'Z';
             } else {
                 // go back
+                #ifdef DEBUG
                 printf("B");
+                #endif
                 newX = prevStop.x;
                 newY = prevStop.y;
                 prevStop.x = result.x;
@@ -764,7 +787,9 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                 result.y = newY;
             }
         } else if (step == 'L') {
+            #ifdef DEBUG
             printf("L");
+            #endif
             // work out which way is left
             // and change newX and newY
             if (result.y == prevStop.y) {
@@ -772,11 +797,15 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                 if (result.x < prevStop.x) {
                     // facing towards the y axis
                     // so we're going down - tested in tests
+                    #ifdef DEBUG
                     printf("[down]");
+                    #endif
                     newY += 1;
                 } else {
                     // going up - tested
+                    #ifdef DEBUG
                     printf("[up]");
+                    #endif
                     newY -= 1;
                 }
             } else if (result.x == prevStop.x) {
@@ -784,21 +813,31 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                 if (result.y < prevStop.y) {
                     // facing towards the x axis
                     // so we're going toward the y axis
-                    if (/*!isValidARC(newX * 2 - 1, newY * 2)*/result.y % 2 == 1 && result.x % 2 == 0) {
-                        printf("[up]");
+                    if ((result.y % 2 == 1 && result.x % 2 == 1)
+                        || (result.x % 2 == 0 && result.y % 2 == 0)) {
+                        #ifdef DEBUG
+                        printf("[up.]");
+                        #endif
                         newY -= 1;
                     } else {
-                        printf("[left]");
+                        #ifdef DEBUG
+                        printf("[left.]");
+                        #endif
                         newX -= 1;
                     }
                 } else {
 
                     if ((result.y % 2 == 1 && result.x % 2 == 0) ||
+                            (result.y % 2 == 0 && result.x % 2 == 1) ||
                             (result.x == 5 && result.y % 2 == 0)) {
+                        #ifdef DEBUG
                         printf("[down!]");
+                        #endif
                         newY += 1;
                     } else {
+                        #ifdef DEBUG
                         printf("[right!]");
+                        #endif
                         newX += 1;
                     }
                 }
@@ -818,35 +857,51 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
             result.y = newY;
             result.x = newX;
         } else if (step == 'R') {
+            #ifdef DEBUG
             printf("R");
+            #endif
             if (result.y == prevStop.y) {
                 // chainging the y value
                 if (result.x < prevStop.x) {
                     // facing the y axis, so going up
+                    #ifdef DEBUG
                     printf("[up]");
+                    #endif
                     newY -= 1;
                 } else {
                     newY += 1;
+                    #ifdef DEBUG
                     printf("[down]");
+                    #endif
                 }
             } else if (result.x == prevStop.x) {
                 // changing the x value
                 if (result.y < prevStop.y) {
                     // facing the x axis
                     // going away from the y axis
-                    if (!isValidARC(newX*2 + 1, newY*2)) {
-                        printf("[up]");
+                    if ((result.x % 2 == 0 && result.y % 2 == 1)
+                        || (result.x % 2 == 1 && result.y % 2 == 0)) {
+                        #ifdef DEBUG
+                        printf("[up!!]");
+                        #endif
                         newY -= 1;
                     } else {
-                        printf("[right]");
+                        #ifdef DEBUG
+                        printf("[right!!]");
+                        #endif
                         newX += 1;
                     }
                 } else {
-                    if (!isValidARC(newX*2 - 1, newY*2)) {
-                        printf("[down]");
+                    if ((result.x % 2 == result.y % 2)
+                        || (result.x == 5 && result.y % 2 == 1)) {
+                        #ifdef DEBUG
+                        printf("[down!!]");
+                        #endif
                         newY += 1;
                     } else {
-                        printf("[left]");
+                        #ifdef DEBUG
+                        printf("[left!!]");
+                        #endif
                         newX -= 1;
                     }
                 }
@@ -863,17 +918,19 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
             prevStop.y = result.y;
             prevStop.x = result.x;
             result.y = newY;
-            result.x = newX;   
-         }
+            result.x = newX;
+        }
+        #ifdef DEBUG
         printf(" (%d,%d)", result.x, result.y);
         printf("\n");
+        #endif
         i++;
     }
     if (!isValidVertex(result.x, result.y)) {
         getArcCoord = FALSE;
         result.x = -1;
         result.y = -1;
-        printf("INVALID!\n");
+        //printf("INVALID!\n");
     }
     if (getArcCoord) {
         // convert both coordinate pairs into arcs -
@@ -886,7 +943,9 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
         result.x = (result.x + prevStop.x) / 2;
         result.y = (result.y + prevStop.y) / 2;
     }
+    #ifdef DEBUG
     printf("ended at (%d,%d)\n", result.x, result.y);
+    #endif
     return result;
 }
 
