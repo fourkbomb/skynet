@@ -44,6 +44,9 @@
 	assert(getCampus(g, UNI_C_CAMPUS_2) == UNI_C);
 	return 0;	
 }*/
+static path *_findNextVacantARC(Game g, path *startingPath, 
+	char nextStep, int depth);
+static path *findNextVacantARC(Game g, path *startingPath);
 
 action decideAction (Game g) {
     int player = getWhoseTurn(g);
@@ -59,10 +62,27 @@ action decideAction (Game g) {
     	} else if (player == UNI_C) {
 			strncpy(dest, UNI_C_CAMPUS_2, strlen(UNI_C_CAMPUS_2));
     	}
-    	while (getARC(g, dest) != VACANT_ARC) {
+    	path orig = {0};
+    	strncpy(orig, dest, strlen(dest));
+    	while (getARC(g, dest) != VACANT_ARC && strlen(dest) > 0) {
     		path new = {0};
     		strncpy(new, dest, strlen(dest)-1);
     		strncpy(dest, new, PATH_LIMIT-1);
+    	}
+    	if (strlen(dest) == 0) {
+    		// cry
+    		// go left or right depending on what's legal
+    		path *ptr = findNextVacantARC(g, &orig);
+    		if (*ptr[0] == 'x') {
+    			// give up!
+    			#ifdef AI_DEBUG
+    			printf("Couldn't find any usable ARCs!\n");
+    			#endif
+    			nextAction.actionCode = PASS;
+    		}
+    		strncpy(dest, *ptr, strlen(*ptr));
+    		free(ptr);
+
     	}
     	strncpy(nextAction.destination, dest, PATH_LIMIT-1);
     } else if (getStudents(g, player, STUDENT_BPS) < 1) {
@@ -113,4 +133,82 @@ action decideAction (Game g) {
     }*/
 
     return nextAction;
+}
+
+static path *_findNextVacantARC(Game g, path *startingPath, 
+	char nextStep, int depth) {
+	path temp = {0};
+	strncat(&(temp[0]), *startingPath, strlen(*startingPath));
+	strncpy(&temp[strlen(*startingPath)], &nextStep, 1);
+	path *result;
+	#ifdef AI_DEBUG
+	printf("%s => %s %d\n", *startingPath, temp, depth);
+	#endif
+	if (depth < 30) {
+		if (getARC(g, temp) == getWhoseTurn(g)) {
+			// keep going down this path
+			#ifdef AI_DEBUG
+			printf("found an arc owned by me, following: %d\n",
+				depth+1);
+			#endif
+			result = _findNextVacantARC(g, &temp, 'R', depth+1);
+			#ifdef AI_DEBUG
+			printf("GOT A RESULT\n");
+			printf("%s\n", *result);
+			#endif
+			if (*result[0] == 'x') {
+				result = _findNextVacantARC(g, &temp, 'L', depth+1);
+			}
+		} else if (getARC(g, temp) == VACANT_ARC) {
+			action checkIsOk = {OBTAIN_ARC, "", 0, 0};
+			#ifdef AI_DEBUG
+			printf("found a vacant arc! ");
+			#endif
+			strncpy(checkIsOk.destination, temp, strlen(temp));
+			if (isLegalAction(g, checkIsOk)) {
+				#ifdef AI_DEBUG
+				printf("it's legal! hooray!\n");
+				#endif
+				result = (path*)strndup(temp, PATH_LIMIT);
+			} else {
+				#ifdef AI_DEBUG
+				printf("it's illegal :(\n");
+				#endif
+				strncpy(temp, "x\0", 2);
+				result = (path*)strndup(temp, PATH_LIMIT);
+			}
+		} else {
+			#ifdef AI_DEBUG
+			printf("arc is owned by someone else :(\n");
+			#endif
+			// arc is owned by another uni.
+			//result = "x\0";
+			strncpy(temp, "x\0", 2);
+			result = (path*)strndup(temp, PATH_LIMIT);
+		}
+	} else {
+		#ifdef AI_DEBUG
+		printf("I've gone too damn far\n");
+		#endif
+		strncpy(temp, "x\0", 2);
+		result = (path*)strndup(temp, PATH_LIMIT);
+	}
+	//printf("result: %s\n", *result);
+	#ifdef AI_DEBUG
+	if (depth == 0) {
+		printf("Going to %s", *result);
+	}
+	#endif
+	return result;
+}
+static path *findNextVacantARC(Game g, path *startingPath) {
+	path* res = _findNextVacantARC(g, startingPath, 'R', 0);
+	if (*res[0] == 'x') {
+		free(res);
+		res = _findNextVacantARC(g, startingPath, 'L', 0);
+	}
+	#ifdef AI_DEBUG
+	printf("\n\nGoing to %s\n\n", *res);
+	#endif
+	return res;
 }
