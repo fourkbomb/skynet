@@ -144,7 +144,7 @@ static path *_findNextVacantARC(Game g, path *startingPath,
 	#ifdef AI_DEBUG
 	printf("%s => %s %d\n", *startingPath, temp, depth);
 	#endif
-	if (depth < 30) {
+	if (depth < 25) {
 		if (getARC(g, temp) == getWhoseTurn(g)) {
 			// keep going down this path
 			#ifdef AI_DEBUG
