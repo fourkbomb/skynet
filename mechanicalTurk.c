@@ -58,9 +58,11 @@ action decideAction (Game g) {
     action nextAction = {PASS, "", 0, 0};
     if (getStudents(g, player, STUDENT_MJ) > 0
         && getStudents(g, player, STUDENT_BQN) > 0
-        && getStudents(g, player, STUDENT_BPS)
-        && getStudents(g, player, STUDENT_MTV) < 1) {
-        // todo build a campus
+        && getStudents(g, player, STUDENT_BPS) > 0
+        && getStudents(g, player, STUDENT_MTV) > 0) {
+        #ifdef AI_DEBUG_CAMPUS
+        printf("BUILDING A CAMPUS BECAUSE I HAVE THE RIGHT STUDENTS\n");
+        #endif
         path dest = {0};
         if (player == UNI_A) {
             strncpy(dest, UNI_A_CAMPUS_2, strlen(UNI_A_CAMPUS_2));
@@ -78,6 +80,7 @@ action decideAction (Game g) {
             strncpy(dest, *ptr, strlen(*ptr));
             free(ptr);
             nextAction.actionCode = BUILD_CAMPUS;
+            strncpy(nextAction.destination, dest, PATH_LIMIT-1);
         }
     }
     if (getStudents(g, player, STUDENT_BPS) > 0
@@ -115,6 +118,9 @@ action decideAction (Game g) {
 
     	}
     	strncpy(nextAction.destination, dest, PATH_LIMIT-1);
+        if (!isLegalAction(g, nextAction)) {
+            nextAction.actionCode = PASS;
+        }
     }
     if (getStudents(g, player, STUDENT_MJ) > 0
         && getStudents(g, player, STUDENT_MMONEY) > 0
@@ -278,47 +284,48 @@ static path *_findNextVacantCampusSpot(Game g, path *startingPath,
     strncpy(&temp[strlen(*startingPath)], &nextStep, 1);
     path *result;
     int done = 0;
-    #ifdef AI_DEBUG
+    #ifdef AI_DEBUG_CAMPUS
+    printf("\n=== depth %d ===\n\n", depth);
     printf("%s => %s %d\n", *startingPath, temp, depth);
     #endif
     if (depth < 25) {
         if (getCampus(g, temp) == VACANT_VERTEX) {
             action checkIsOk = {BUILD_CAMPUS, "", 0, 0};
-            #ifdef AI_DEBUG
-            printf("found a vacant vertex! ");
+            #ifdef AI_DEBUG_CAMPUS
+            printf("found a vacant vertex! %s ", temp);
             #endif
             strncpy(checkIsOk.destination, temp, strlen(temp));
             if (isLegalAction(g, checkIsOk)) {
-                #ifdef AI_DEBUG
+                #ifdef AI_DEBUG_CAMPUS
                 printf("it's legal! hooray!\n");
                 #endif
                 result = (path*)strndup(temp, PATH_LIMIT);
                 done = 1;
             } else {
-                #ifdef AI_DEBUG
-                printf("it's illegal :(\n");
+                #ifdef AI_DEBUG_CAMPUS
+                printf("it's illegal: owned by %d, leading arc is owned by %d, i am %d :(\n", getCampus(g, temp), getARC(g, temp), getWhoseTurn(g));
                 #endif
-                strncpy(temp, "x\0", 2);
-                result = (path*)strndup(temp, PATH_LIMIT);
+                done = 0;
+                //strncpy(temp, "x\0", 2);
             }
         }
-        if (!done && getARC(g, temp) == getWhoseTurn(g)) {
+        if (done == 0 && getARC(g, temp) == getWhoseTurn(g)) {
             // keep going down this path
-            #ifdef AI_DEBUG
+            #ifdef AI_DEBUG_CAMPUS
             printf("found an arc owned by me, following: %d\n",
                 depth+1);
             #endif
             result = _findNextVacantCampusSpot(g, &temp, 'R', depth+1);
-            #ifdef AI_DEBUG
-            printf("GOT A RESULT\n");
+            #ifdef AI_DEBUG_CAMPUS
+            printf("GOT A RESULT: ");
             printf("%s\n", *result);
             #endif
             if (*result[0] == 'x') {
                 result = _findNextVacantCampusSpot(g, &temp, 'L', depth+1);
             }
-        } else {
-            #ifdef AI_DEBUG
-            printf("arc is owned by someone else :(\n");
+        } else if (done == 0) {
+            #ifdef AI_DEBUG_CAMPUS
+            printf("arc is owned by someone else :( done: %d, arc: %d, me: %d\n", done, getARC(g, temp), getWhoseTurn(g));
             #endif
             // arc is owned by another uni.
             //result = "x\0";
@@ -326,17 +333,18 @@ static path *_findNextVacantCampusSpot(Game g, path *startingPath,
             result = (path*)strndup(temp, PATH_LIMIT);
         }
     } else {
-        #ifdef AI_DEBUG
+        #ifdef AI_DEBUG_CAMPUS
         printf("I've gone too damn far\n");
         #endif
         strncpy(temp, "x\0", 2);
         result = (path*)strndup(temp, PATH_LIMIT);
     }
     //printf("result: %s\n", *result);
-    #ifdef AI_DEBUG
+    #ifdef AI_DEBUG_CAMPUS
     if (depth == 0) {
-        printf("Going to %s", *result);
+        printf("Going to %s\n", *result);
     }
+    printf("\n=== end depth %d ===\n\n", depth);
     #endif
     return result;
 }
@@ -346,8 +354,8 @@ static path *findNextVacantCampusSpot(Game g, path *startingPath) {
         free(res);
         res = _findNextVacantCampusSpot(g, startingPath, 'L', 0);
     }
-    #ifdef AI_DEBUG
-    printf("\n\nGoing to %s\n\n", *res);
+    #ifdef AI_DEBUG_CAMPUS
+    printf("\n\nGoing to %s!!!\n\n", *res);
     #endif
     return res;
 }
