@@ -593,8 +593,7 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                 if (result.y < prevStop.y) {
                     // facing towards the x axis
                     // so we're going toward the y axis
-                    if ((result.y % 2 == 1 && result.x % 2 == 1)
-                        || (result.x % 2 == 0 && result.y % 2 == 0)) {
+                    if (result.y % 2 == result.x % 2) {
                         #ifdef DEBUG
                         printf("[up.]");
                         #endif
@@ -608,9 +607,7 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                         newX -= 1;
                     }
                 } else {
-
-                    if ((result.y % 2 == 1 && result.x % 2 == 0) ||
-                            (result.y % 2 == 0 && result.x % 2 == 1) ||
+                    if ((result.y % 2 != result.x % 2) ||
                             (result.x == 5 && result.y % 2 == 0)) {
                         #ifdef DEBUG
                         printf("[down!]");
@@ -668,8 +665,7 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                 if (result.y < prevStop.y) {
                     // facing the x axis
                     // going away from the y axis
-                    if ((result.x % 2 == 0 && result.y % 2 == 1)
-                        || (result.x % 2 == 1 && result.y % 2 == 0)) {
+                    if (result.x % 2 != result.y % 2) {
                         #ifdef DEBUG
                         printf("[up!!]");
                         #endif
@@ -683,8 +679,7 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                         newX += 1;
                     }
                 } else {
-                    if ((result.x % 2 == result.y % 2)
-                        || (result.x == 5 && result.y % 2 == 1)) {
+                    if ((result.x % 2 == result.y % 2)) {
                         #ifdef DEBUG
                         printf("[down!!]");
                         #endif
@@ -714,6 +709,10 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
             prevStop.x = result.x;
             result.y = newY;
             result.x = newX;
+        } else {
+            result.y = -1;
+            result.x = -1;
+            step = 'Z';
         }
 
         #ifdef DEBUG
@@ -725,7 +724,6 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
     }
 
     if (!isValidVertex(result.x, result.y)) {
-        getArcCoord = FALSE;
         result.x = -1;
         result.y = -1;
         //printf("INVALID!\n");
