@@ -24,7 +24,7 @@
 #include <assert.h>
 #include "Game.h"
 
-#define NUM_DISCIPLINES 6
+#define NUM_DISCIPLINE 6
 #define MAP_ARC_HEIGHT 21
 #define MAP_ARC_WIDTH 11
 #define MAP_VERTEX_HEIGHT 11
@@ -64,7 +64,6 @@ typedef struct _game {
     int mostARCgrants;
     int mostPublications;
     int numGO8s;
-    int diceRoll;
 
     // scores for each university
     int kpi[NUM_UNIS];
@@ -75,8 +74,8 @@ typedef struct _game {
     int publications[NUM_UNIS];
 
     // each discipline for each university
-    int students[NUM_UNIS][NUM_DISCIPLINES];
-    int exchangeRates[NUM_UNIS][NUM_DISCIPLINES];
+    int students[NUM_UNIS][NUM_DISCIPLINE];
+    int exchangeRates[NUM_UNIS][NUM_DISCIPLINE];
 
     // board layout settings
     int *boardTileDisciplines;
@@ -121,9 +120,9 @@ static int isValidVertex(int x, int y);
 static int isValidARC(int x, int y);
 static int isValidAction(Game g, action a);
 static int hasMostARCgrants(Game g, int player);
-static int playerOwnsARCAdjacentTo(Game g, coord arc, int player);
-static int playerOwnsVertexBorderingARC(Game g, coord arc, int player);
-static int vertexHasARCOwnedByPlayer(Game g, coord vert, int player);
+static int ownsARCadjacentTo(Game g, coord arc, int player);
+static int ownsVertexBorderingARC(Game g, coord arc, int player);
+static int ownsARCborderingVertex(Game g, coord vertex, int player);
 static int isCampusAdjacent(Game g, coord vertex);
 static void updateKPI(Game g, int player, int actionCode);
 static void updateArc(Game g, int x, int y, int newValue);
@@ -277,49 +276,48 @@ void makeAction(Game g, action a) {
 }
 
 void throwDice(Game g, int diceScore) {
-    int regY = 0;
-    while (regY < MAP_REGION_HEIGHT) {
-        int regX = 0;
-        while (regX < MAP_REGION_WIDTH) {
-            region r = getRegionForCoordinates(g, regX, regY);
+    int y = 0;
+    while (y < MAP_REGION_HEIGHT) {
+        int x = 0;
+        while (x < MAP_REGION_WIDTH) {
+            region r = getRegionForCoordinates(g, x, y);
             if (r.diceValue == diceScore) {
                 // commence calculation
                 // adjacent vertexes are
                 // x, x+1
                 // y, y+1, y+2
-                int yIncr = 0;
-                while (yIncr < 3) {
-                    int xIncr = 0;
-                    while (xIncr < 2) {
-                        if (g->vertices[regY+yIncr][regX+xIncr] !=
+                int yInc = 0;
+                while (yInc < 3) {
+                    int xInc = 0;
+                    while (xInc < 2) {
+                        if (g->vertices[y+yInc][x+xInc] !=
                                 VACANT_VERTEX) {
-                            int owner =
-                                    g->vertices[regY+yIncr][regX+xIncr];
+                            int owner = g->vertices[y+yInc][x+xInc];
                             if (owner > 3) { // GO8
                                 g->students[owner-4][r.discipline] += 2;
                             } else { // normal campus
                                 g->students[owner-1][r.discipline]++;
                             }
                         }
-                        xIncr++;
+                        xInc++;
                     }
-                    yIncr++;
+                    yInc++;
                 }
             }
-            regX++;
+            x++;
         }
-        regY++;
+        y++;
     }
     if (diceScore == 7) {
         int uni = UNI_A;
         while (uni <= UNI_C) {
-            int transferring = 0;
-            transferring += g->students[uni-1][STUDENT_MTV];
-            transferring += g->students[uni-1][STUDENT_MMONEY];
+            g->students[uni-1][STUDENT_THD] +=
+                    g->students[uni-1][STUDENT_MTV];
+            g->students[uni-1][STUDENT_THD] +=
+                    g->students[uni-1][STUDENT_MMONEY];
             g->students[uni-1][STUDENT_MTV] = 0;
             g->students[uni-1][STUDENT_MMONEY] = 0;
 
-            g->students[uni-1][STUDENT_THD] += transferring;
             uni++;
         }
     }
@@ -401,7 +399,7 @@ int isLegalAction(Game g, action a) {
                 // check there's no campus there and the player has an
                 // adjacent arc
                 if (getCampus(g, a.destination) == VACANT_VERTEX &&
-                        vertexHasARCOwnedByPlayer(g, vertex, player)) {
+                        ownsARCborderingVertex(g, vertex, player)) {
                     // and the player has the right resources
                     if (getStudents(g, player, STUDENT_BQN) >= 1 &&
                             getStudents(g, player, STUDENT_BPS) >= 1 &&
@@ -440,9 +438,8 @@ int isLegalAction(Game g, action a) {
                 #ifdef DEBUG
                 printf("coords are ok - %d, %d\n", arc.x, arc.y);
                 #endif
-                if ((playerOwnsARCAdjacentTo(g, arc, player) ||
-                        playerOwnsVertexBorderingARC(g, arc,
-                        player))) {
+                if ((ownsARCadjacentTo(g, arc, player) ||
+                        ownsVertexBorderingARC(g, arc, player))) {
                     #ifdef DEBUG
                     printf("adjacents ok\n");
                     #endif
@@ -452,7 +449,8 @@ int isLegalAction(Game g, action a) {
                         #endif
                         // check the player has enough students
                         if (getStudents(g, player, STUDENT_BQN) >= 1 &&
-                                getStudents(g, player, STUDENT_BPS) >= 1) {
+                                getStudents(g, player, STUDENT_BPS) >=
+                                1) {
                             #ifdef DEBUG
                             printf("students are ok\n");
                             #endif
@@ -473,11 +471,11 @@ int isLegalAction(Game g, action a) {
         } else if (actionType == RETRAIN_STUDENTS) {
             int from = a.disciplineFrom;
             int to = a.disciplineTo;
-            if (from >= STUDENT_THD && from <= STUDENT_MMONEY &&
-                    to >= STUDENT_THD && to <= STUDENT_MMONEY) {
-                int exchangeRate = getExchangeRate(g, player, from, to);
+            if (STUDENT_THD <= from && from <= STUDENT_MMONEY &&
+                    STUDENT_THD <= to && to <= STUDENT_MMONEY) {
                 if (from != STUDENT_THD &&
-                        getStudents(g, player, from) >= exchangeRate) {
+                        getStudents(g, player, from) >=
+                        getExchangeRate(g, player, from, to)) {
                     isLegal = TRUE;
                 }
             }
@@ -539,8 +537,7 @@ int getPublications(Game g, int player) {
 int getStudents(Game g, int player, int discipline) {
     int get = 0;
     if (UNI_A <= player && player <= UNI_C) {
-        if (STUDENT_THD <= discipline &&
-                discipline <= NUM_DISCIPLINES) {
+        if (STUDENT_THD <= discipline && discipline <= NUM_DISCIPLINE) {
             get = g->students[player-1][discipline];
         }
     }
@@ -549,8 +546,8 @@ int getStudents(Game g, int player, int discipline) {
 
 // returns how many students of type disciplineFrom are needed
 // to produce one student of disciplineTo
-int getExchangeRate (Game g, int player,
-        int disciplineFrom, int disciplineTo) {
+int getExchangeRate (Game g, int player, int disciplineFrom,
+        int disciplineTo) {
     return g->exchangeRates[player-1][disciplineFrom];
 }
 
@@ -564,9 +561,7 @@ static int isValidRegion(int x, int y) {
         valid = FALSE;
     } else if ((y == 1 || y == 8) && (x == 0 || x == 4)) {
         valid = FALSE;
-    } else if (x % 2 == 1 && y % 2 == 0) {
-        valid = FALSE;
-    } else if (x % 2 == 0 && y % 2 == 1) {
+    } else if (x % 2 != y % 2) {
         valid = FALSE;
     }
     return valid;
@@ -591,22 +586,15 @@ static int hasMostARCgrants(Game g, int player) {
 // computes who has the most publications. mostPublications in
 // struct _game is NOT used NOR updated
 static int hasMostPublications(Game g, int player) {
-    int mostPublications = FALSE;
-    if (player == UNI_A) {
-        if (g->publications[player-1] > g->publications[UNI_B-1] &&
-                g->publications[player-1] > g->publications[UNI_C-1]) {
-            mostPublications = TRUE;
+    int mostPublications = TRUE;
+    int uni = UNI_A;
+    while (uni <= UNI_C) {
+        if (uni != player) {
+            if (g->publications[uni-1] >= g->publications[player-1]) {
+                mostPublications = FALSE;
+            }
         }
-    } else if (player == UNI_B) {
-        if (g->publications[player-1] > g->publications[UNI_A-1] &&
-                g->publications[player-1] > g->publications[UNI_C-1]) {
-            mostPublications = TRUE;
-        }
-    } else if (player == UNI_C) {
-        if (g->publications[player-1] > g->publications[UNI_A-1] &&
-                g->publications[player-1] > g->publications[UNI_B-1]) {
-            mostPublications = TRUE;
-        }
+        uni++;
     }
     return mostPublications;
 }
@@ -813,8 +801,7 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                 if (result.y < prevStop.y) {
                     // facing towards the x axis
                     // so we're going toward the y axis
-                    if ((result.y % 2 == 1 && result.x % 2 == 1)
-                        || (result.x % 2 == 0 && result.y % 2 == 0)) {
+                    if (result.y % 2 == result.x % 2) {
                         #ifdef DEBUG
                         printf("[up.]");
                         #endif
@@ -826,9 +813,7 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                         newX -= 1;
                     }
                 } else {
-
-                    if ((result.y % 2 == 1 && result.x % 2 == 0) ||
-                            (result.y % 2 == 0 && result.x % 2 == 1) ||
+                    if ((result.y % 2 != result.x % 2) ||
                             (result.x == 5 && result.y % 2 == 0)) {
                         #ifdef DEBUG
                         printf("[down!]");
@@ -879,8 +864,7 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                 if (result.y < prevStop.y) {
                     // facing the x axis
                     // going away from the y axis
-                    if ((result.x % 2 == 0 && result.y % 2 == 1)
-                        || (result.x % 2 == 1 && result.y % 2 == 0)) {
+                    if (result.x % 2 != result.y % 2) {
                         #ifdef DEBUG
                         printf("[up!!]");
                         #endif
@@ -892,8 +876,7 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                         newX += 1;
                     }
                 } else {
-                    if ((result.x % 2 == result.y % 2)
-                        || (result.x == 5 && result.y % 2 == 1)) {
+                    if ((result.x % 2 == result.y % 2)) {
                         #ifdef DEBUG
                         printf("[down!!]");
                         #endif
@@ -919,7 +902,12 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
             prevStop.x = result.x;
             result.y = newY;
             result.x = newX;
+        } else {
+            result.y = -1;
+            result.x = -1;
+            step = 'Z';
         }
+
         #ifdef DEBUG
         printf(" (%d,%d)", result.x, result.y);
         printf("\n");
@@ -927,12 +915,10 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
         i++;
     }
     if (!isValidVertex(result.x, result.y)) {
-        getArcCoord = FALSE;
         result.x = -1;
         result.y = -1;
         //printf("INVALID!\n");
-    }
-    if (getArcCoord) {
+    } else if (getArcCoord) {
         // convert both coordinate pairs into arcs -
         // the arc returned is the last arc traversed in the path.
         result.x *= 2;
@@ -949,9 +935,9 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
     return result;
 }
 
-static int vertexHasARCOwnedByPlayer(Game g, coord vert, int player) {
-    int y = vert.y * 2;
-    int x = vert.x * 2;
+static int ownsARCborderingVertex(Game g, coord vertex, int player) {
+    int y = vertex.y * 2;
+    int x = vertex.x * 2;
     // either side
     int result = FALSE;
     if (g->arcs[y][x-1] == player || g->arcs[y][x+1] == player ||
@@ -961,7 +947,7 @@ static int vertexHasARCOwnedByPlayer(Game g, coord vert, int player) {
     return result;
 }
 
-static int playerOwnsARCAdjacentTo(Game g, coord arc, int player) {
+static int ownsARCadjacentTo(Game g, coord arc, int player) {
     int y = arc.y;
     int x = arc.x;
     int result = FALSE;
@@ -981,7 +967,7 @@ static int playerOwnsARCAdjacentTo(Game g, coord arc, int player) {
     return result;
 }
 
-static int playerOwnsVertexBorderingARC(Game g, coord arc, int player) {
+static int ownsVertexBorderingARC(Game g, coord arc, int player) {
     int y = arc.y;
     int x = arc.x;
     // vertices are at an (even, even) point.
@@ -1051,10 +1037,8 @@ static void updateExchangeRate(Game g, coord vertex, int player) {
     // 4,8 4,9 - MJ
     // 5,5 5,6 - BQN
     if (vertex.y == 1 && (vertex.x == 1 || vertex.x == 2)) {
-        // mtv is cheaper
         g->exchangeRates[player-1][STUDENT_MTV]--;
-
-    } else if (vertex.y == 1 && (vertex.x == 3 || vertex.y == 4)) {
+    } else if (vertex.y == 1 && (vertex.x == 3 || vertex.x == 4)) {
         g->exchangeRates[player-1][STUDENT_MMONEY]--;
     } else if (vertex.x == 1 && (vertex.y == 8 || vertex.y == 9)) {
         g->exchangeRates[player-1][STUDENT_BPS]--;
