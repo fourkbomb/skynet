@@ -62,11 +62,12 @@ static coord getARCCoordinateFromPath(path p);
 static int isValidVertex(int x, int y);
 
 action decideAction (Game g) {
-    int player = getWhoseTurn(g);
     action nextAction = {PASS, "", 0, 0};
     int campusesExhausted = 0;
     int arcsExhausted = 0;
     path myCampus = {0};
+
+    int player = getWhoseTurn(g);
     if (player == UNI_A) {
         strncpy(myCampus, UNI_A_CAMPUS_2, strlen(UNI_A_CAMPUS_2));
     } else if (player == UNI_B) {
@@ -74,6 +75,7 @@ action decideAction (Game g) {
     } else if (player == UNI_C) {
         strncpy(myCampus, UNI_C_CAMPUS_2, strlen(UNI_C_CAMPUS_2));
     }
+
     path *ptrCampuses = findNextVacantCampusSpot(g, &myCampus);
 
     path *ptrARCs = findNextVacantARC(g, &myCampus);
@@ -85,6 +87,7 @@ action decideAction (Game g) {
             campusesExhausted = 1;
         }
     }
+
     if (getStudents(g, player, STUDENT_MJ) > 0
         && getStudents(g, player, STUDENT_BQN) > 0
         && getStudents(g, player, STUDENT_BPS) > 0
@@ -92,6 +95,7 @@ action decideAction (Game g) {
         #ifdef AI_DEBUG_CAMPUS
         printf("BUILDING A CAMPUS BECAUSE I HAVE THE RIGHT STUDENTS\n");
         #endif
+
         path dest = {0};
         if (*ptrCampuses[0] == 'x') {
             #ifdef AI_DEBUG_CAMPUS
@@ -101,16 +105,20 @@ action decideAction (Game g) {
             strncpy(dest, *ptrCampuses, strlen(*ptrCampuses));
             nextAction.actionCode = BUILD_CAMPUS;
             strncpy(nextAction.destination, dest, PATH_LIMIT-1);
+
             if (!isLegalAction(g, nextAction)) {
                 nextAction.actionCode = PASS;
             }
         }
     }
+
     free(ptrCampuses);
+
     if (getStudents(g, player, STUDENT_BPS) > 0
     	&& getStudents(g, player, STUDENT_BQN) > 0
         && nextAction.actionCode == PASS) {
     	nextAction.actionCode = OBTAIN_ARC;
+
 		path *ptr = findNextVacantARC(g, &myCampus);
 		if (*ptr[0] == 'x') {
 			// give up!
@@ -119,15 +127,20 @@ action decideAction (Game g) {
 			#endif
 			nextAction.actionCode = PASS;
 		}
+
         path dest = {0};
 		strncpy(dest, *ptr, strlen(*ptr));
+
 		free(ptr);
+
     	strncpy(nextAction.destination, dest, PATH_LIMIT-1);
         if (!isLegalAction(g, nextAction)) {
             nextAction.actionCode = PASS;
         }
     }
+
     free(ptrARCs);
+
     if (getStudents(g, player, STUDENT_MJ) > 0
         && getStudents(g, player, STUDENT_MMONEY) > 0
         && getStudents(g, player, STUDENT_MTV) > 0
@@ -173,11 +186,13 @@ action decideAction (Game g) {
                 smallestType = i;
             }
         }
+
         if (smallestType != 0) {
             r = tryConvertTo(g, smallestType, types);
         } else {
             r.actionCode = PASS;
         }
+
         if (r.disciplineFrom != 0) {
             nextAction.disciplineFrom = r.disciplineFrom;
             nextAction.disciplineTo = r.disciplineTo;
@@ -206,6 +221,7 @@ static action tryConvertTo(Game g, int studentTo, int *minTypes) {
             }
         }
     }
+
     if (successful) {
         //action a = {RETRAIN_STUDENTS, "", studentFrom, studentTo};
         a.disciplineFrom = studentFrom;
@@ -215,6 +231,7 @@ static action tryConvertTo(Game g, int studentTo, int *minTypes) {
             a.disciplineTo = 0;
         }
     }
+
     return a;
 }
 
@@ -223,15 +240,19 @@ static path *_findNextVacantARC(Game g, path *startingPath,
 	path temp = {0};
 	strncat(&(temp[0]), *startingPath, strlen(*startingPath));
 	strncpy(&temp[strlen(*startingPath)], &nextStep, 1);
+
 	path *result;
+
 	#ifdef AI_DEBUG
 	printf("%s => %s %d\n", *startingPath, temp, depth);
 	#endif
+
     coord c = getARCCoordinateFromPath(temp);
     if (c.x == -1 || c.y == -1) {
         #ifdef AI_DEBUG
         printf("invalid coordinates! aborting.\n");
         #endif
+
         strncpy(temp, "x\0", 2);
         result = (path*)strndup(temp, PATH_LIMIT);
     } else {
@@ -242,11 +263,14 @@ static path *_findNextVacantARC(Game g, path *startingPath,
     			printf("found an arc owned by me, following: %d\n",
     				depth+1);
     			#endif
+
     			result = _findNextVacantARC(g, &temp, 'R', depth+1);
+
     			#ifdef AI_DEBUG
     			printf("GOT A RESULT\n");
     			printf("%s\n", *result);
     			#endif
+
     			if (*result[0] == 'x') {
     				result = _findNextVacantARC(g, &temp, 'L', depth+1);
     			}
@@ -254,10 +278,12 @@ static path *_findNextVacantARC(Game g, path *startingPath,
     			#ifdef AI_DEBUG
     			printf("found a vacant arc! ");
     			#endif
+
     			// if (isLegalAction(g, checkIsOk)) {
     			#ifdef AI_DEBUG
     			printf("it's legal! hooray!\n");
     			#endif
+
     			result = (path*)strndup(temp, PATH_LIMIT);
     			/*} else {
     				#ifdef AI_DEBUG
@@ -279,16 +305,19 @@ static path *_findNextVacantARC(Game g, path *startingPath,
     		#ifdef AI_DEBUG
     		printf("I've gone too damn far\n");
     		#endif
+
     		strncpy(temp, "x\0", 2);
     		result = (path*)strndup(temp, PATH_LIMIT);
     	}
     }
+
 	//printf("result: %s\n", *result);
 	#ifdef AI_DEBUG
 	if (depth == 0) {
 		printf("Going to %s", *result);
 	}
 	#endif
+
 	return result;
 }
 
@@ -298,9 +327,11 @@ static path *findNextVacantARC(Game g, path *startingPath) {
 		free(res);
 		res = _findNextVacantARC(g, startingPath, 'L', 0);
 	}
+
 	#ifdef AI_DEBUG
 	printf("\n\nGoing to %s\n\n", *res);
 	#endif
+
 	return res;
 }
 
@@ -309,17 +340,21 @@ static path *_findNextVacantCampusSpot(Game g, path *startingPath,
     path temp = {0};
     strncat(&(temp[0]), *startingPath, strlen(*startingPath));
     strncpy(&temp[strlen(*startingPath)], &nextStep, 1);
-    path *result;
+
     int done = 0;
+
     #ifdef AI_DEBUG_CAMPUS
     printf("\n[campus] === depth %d ===\n\n", depth);
     //printf("[campus] %s => %s %d\n", *startingPath, temp, depth);
     #endif
+
+    path *result;
     coord testPath = getVertexCoordinateFromPath(temp);
     if (testPath.x == -1 || testPath.y == -1) {
         #ifdef AI_DEBUG_CAMPUS
         printf("[campus] Invalid coordinates (%d,%d)\n", testPath.x, testPath.y);
         #endif
+
         strncpy(temp, "x\0", 2);
         result = (path*) strndup(temp, PATH_LIMIT);
     } else {
@@ -328,18 +363,23 @@ static path *_findNextVacantCampusSpot(Game g, path *startingPath,
                 // this can be illegal if there's
                 // 1. no leading arc
                 // 2. a campus adjacent
+
                 #ifdef AI_DEBUG_CAMPUS
                 printf("[campus] vertex is valid: owned by %d, i am %d\n", getCampus(g, temp), getWhoseTurn(g));
                 #endif
+
                 action checkIsOk = {BUILD_CAMPUS, "", 0, 0};
                 strncpy(checkIsOk.destination, temp, PATH_LIMIT);
+
                 #ifdef AI_DEBUG_CAMPUS
                 printf("[campus] isLegalAction(g, {BUILD_CAMPUS, %s, 0, 0})\n", checkIsOk.destination);
                 #endif
+
                 if (isLegalAction(g, checkIsOk)) {
                     #ifdef AI_DEBUG_CAMPUS
                     printf("!@$!$#!$#!$!#$!#$ ACTION action is legal. building campus here.\n");
                     #endif
+
                     result = (path*)strndup(temp, PATH_LIMIT);
                     done = 1;
                 } else {
@@ -348,10 +388,12 @@ static path *_findNextVacantCampusSpot(Game g, path *startingPath,
                     #endif
                 }
             }
+
             if (!done && getARC(g, temp) == getWhoseTurn(g)) {
                 #ifdef AI_DEBUG_CAMPUS
                 printf("[campus] arc is ok to follow: owned by %d, i am %d, done: %d\n", getARC(g, temp), getWhoseTurn(g), done);
                 #endif
+
                 result = _findNextVacantCampusSpot(g, &temp, 'R', depth+1);
                 if (*result[0] == 'x') {
                     #ifdef AI_DEBUG_CAMPUS
@@ -359,11 +401,13 @@ static path *_findNextVacantCampusSpot(Game g, path *startingPath,
                     #endif
                     result = _findNextVacantCampusSpot(g, &temp, 'L', depth+1);
                 }
+
                 done = 1;
             } else if (done == 0) {
                 #ifdef AI_DEBUG_CAMPUS
                 printf("[campus] arc is not ok: owned by %d, i am %d\n", getARC(g, temp), getWhoseTurn(g));
                 #endif
+
                 strncpy(temp, "x\0", 2);
                 result = (path*)strndup(temp, PATH_LIMIT);
             }
@@ -371,6 +415,7 @@ static path *_findNextVacantCampusSpot(Game g, path *startingPath,
             #ifdef AI_DEBUG_CAMPUS
             printf("[campus] too many levels of recursion!\n");
             #endif
+
             strncpy(temp, "x\0", 2);
             result = (path*)strndup(temp, PATH_LIMIT);
         }
@@ -428,12 +473,14 @@ static path *_findNextVacantCampusSpot(Game g, path *startingPath,
         result = (path*)strndup(temp, PATH_LIMIT);
     }*/
     //printf("result: %s\n", *result);
+ 
     #ifdef AI_DEBUG_CAMPUS
     if (depth == 0) {
         printf("Going to %s\n", *result);
     }
     printf("\n=== end depth %d ===\n\n", depth);
     #endif
+
     return result;
 }
 static path *findNextVacantCampusSpot(Game g, path *startingPath) {
@@ -442,9 +489,11 @@ static path *findNextVacantCampusSpot(Game g, path *startingPath) {
         free(res);
         res = _findNextVacantCampusSpot(g, startingPath, 'L', 0);
     }
+
     #ifdef AI_DEBUG_CAMPUS
     printf("\n\nGoing to %s!!!\n\n", *res);
     #endif
+
     return res;
 }
 // coordinate functions
@@ -458,6 +507,7 @@ static int isValidVertex(int x, int y) {
     } else if ((y == 1 || y == 9) && (x == 0 || x == 5)) {
         valid = FALSE;
     }
+
     return valid;
 }
 
@@ -471,22 +521,27 @@ static coord getARCCoordinateFromPath(path p) {
 
 static coord getCoordinateFromPath(path p, int getArcCoord) {
     int len = (int) strlen(p);
+
     #ifdef DEBUG
     printf("\n\n====== NEW PATH '%s' =====\n\n", p);
     #endif
-    int i = 0;
+
     coord result;
     result.x = 2;
     result.y = 0;
+
     coord prevStop;
     prevStop.x = 1;
     prevStop.y = -1;
+
+    int i = 0;
     while (i < len && isValidVertex(result.x, result.y)) {
         #ifdef DEBUG
         printf(" %03d of %03d - currently at (%d, %d) - previously"
                 "(%d, %d) ", i+1, len, result.x, result.y, prevStop.x,
                 prevStop.y);
         #endif
+
         char step = p[i];
         int newX = result.x;
         int newY = result.y;
@@ -501,6 +556,7 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                 #ifdef DEBUG
                 printf("B");
                 #endif
+
                 newX = prevStop.x;
                 newY = prevStop.y;
                 prevStop.x = result.x;
@@ -522,12 +578,14 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                     #ifdef DEBUG
                     printf("[down]");
                     #endif
+
                     newY += 1;
                 } else {
                     // going up - tested
                     #ifdef DEBUG
                     printf("[up]");
                     #endif
+
                     newY -= 1;
                 }
             } else if (result.x == prevStop.x) {
@@ -540,11 +598,13 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                         #ifdef DEBUG
                         printf("[up.]");
                         #endif
+
                         newY -= 1;
                     } else {
                         #ifdef DEBUG
                         printf("[left.]");
                         #endif
+
                         newX -= 1;
                     }
                 } else {
@@ -555,11 +615,13 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                         #ifdef DEBUG
                         printf("[down!]");
                         #endif
+
                         newY += 1;
                     } else {
                         #ifdef DEBUG
                         printf("[right!]");
                         #endif
+
                         newX += 1;
                     }
                 }
@@ -570,9 +632,11 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                 if (i != 0) {
                     printf("ERROR: NOT ON FIRST STEP\n");
                 }
+
                 newY = 0;
                 newX = 3;
             }
+
             // and update the variables
             prevStop.y = result.y;
             prevStop.x = result.x;
@@ -582,6 +646,7 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
             #ifdef DEBUG
             printf("R");
             #endif
+
             if (result.y == prevStop.y) {
                 // chainging the y value
                 if (result.x < prevStop.x) {
@@ -589,12 +654,14 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                     #ifdef DEBUG
                     printf("[up]");
                     #endif
+                    
                     newY -= 1;
                 } else {
-                    newY += 1;
                     #ifdef DEBUG
                     printf("[down]");
                     #endif
+
+                    newY += 1;
                 }
             } else if (result.x == prevStop.x) {
                 // changing the x value
@@ -606,11 +673,13 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                         #ifdef DEBUG
                         printf("[up!!]");
                         #endif
+
                         newY -= 1;
                     } else {
                         #ifdef DEBUG
                         printf("[right!!]");
                         #endif
+
                         newX += 1;
                     }
                 } else {
@@ -619,11 +688,13 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                         #ifdef DEBUG
                         printf("[down!!]");
                         #endif
+
                         newY += 1;
                     } else {
                         #ifdef DEBUG
                         printf("[left!!]");
                         #endif
+
                         newX -= 1;
                     }
                 }
@@ -632,28 +703,34 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
                 if (i != 0) {
                     printf("ERROR: NOT ON FIRST STEP\n");
                 }
+
                 // DEBUG: printf("*1");
                 newY = 1;
                 newX = 2;
             }
+
             // and update the variables
             prevStop.y = result.y;
             prevStop.x = result.x;
             result.y = newY;
             result.x = newX;
         }
+
         #ifdef DEBUG
         printf(" (%d,%d)", result.x, result.y);
         printf("\n");
         #endif
+
         i++;
     }
+
     if (!isValidVertex(result.x, result.y)) {
         getArcCoord = FALSE;
         result.x = -1;
         result.y = -1;
         //printf("INVALID!\n");
     }
+
     if (getArcCoord) {
         // convert both coordinate pairs into arcs -
         // the arc returned is the last arc traversed in the path.
@@ -665,8 +742,10 @@ static coord getCoordinateFromPath(path p, int getArcCoord) {
         result.x = (result.x + prevStop.x) / 2;
         result.y = (result.y + prevStop.y) / 2;
     }
+
     #ifdef DEBUG
     printf("ended at (%d,%d)\n", result.x, result.y);
     #endif
+
     return result;
 }
