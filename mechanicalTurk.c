@@ -68,13 +68,12 @@ action decideAction (Game g) {
     path myCampus = {0};
 
     int player = getWhoseTurn(g);
-    int rng = rand() % 2;
     if (player == UNI_A) {
-        strncpy(myCampus, rng ? UNI_A_CAMPUS_1 : UNI_A_CAMPUS_2, strlen(rng ? UNI_A_CAMPUS_1 : UNI_A_CAMPUS_2));
+        strncpy(myCampus, UNI_A_CAMPUS_2, strlen(UNI_A_CAMPUS_2));
     } else if (player == UNI_B) {
-        strncpy(myCampus, rng ? UNI_B_CAMPUS_1 : UNI_B_CAMPUS_2, strlen(rng ? UNI_B_CAMPUS_1 : UNI_B_CAMPUS_2));
+        strncpy(myCampus, UNI_B_CAMPUS_2, strlen(UNI_B_CAMPUS_2));
     } else if (player == UNI_C) {
-        strncpy(myCampus, rng ? UNI_C_CAMPUS_1 : UNI_C_CAMPUS_2, strlen(rng ? UNI_C_CAMPUS_1 : UNI_C_CAMPUS_2));
+        strncpy(myCampus, UNI_C_CAMPUS_2, strlen(UNI_C_CAMPUS_2));
     }
 
     path *ptrCampuses = findNextVacantCampusSpot(g, &myCampus);
