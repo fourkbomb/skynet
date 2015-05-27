@@ -47,6 +47,7 @@
 void randomDisciplines(int disciplines[]);
 void randomDice(int dice[]);
 void rigBoard(int disciplines[], int dice[]);
+void printPlayerStats(Game g, int turnPerson);
 int rollDice(void);
 int checkForWinner(Game g);
 void printLineBreak(void);
@@ -124,23 +125,7 @@ int main(int argc, char *argv[]) {
             // checks if they are legal. only gives a move within the
             // scope of the defined actionCodes that is legal
             int turnPerson = getWhoseTurn(g);
-            printf("Stats for %c:\n", turnPerson + UNI_CHAR_NAME);
-            printf("KPIs: %d\n", getKPIpoints(g, turnPerson));
-            printf("ARCs: %d\n", getARCs(g, turnPerson));
-            printf("Campuses: %d\n", getCampuses(g, turnPerson));
-            printf("GO8s: %d\n", getGO8s(g, turnPerson));
-            printf("Publications: %d\n", 
-               getPublications(g, turnPerson));
-            printf("Patents: %d\n", 
-               getIPs(g, turnPerson));
-            int discipleIndex = 0;
-            char *discipleNames[] = DISCIPLE_NAMES;
-            while (discipleIndex < NUM_DISCIPLINES) {
-               printf("Type %s: %d\n", discipleNames[discipleIndex],
-                  getStudents(g, turnPerson, discipleIndex));
-               discipleIndex++;
-            } 
-            printf("\n");
+            printPlayerStats(g, turnPerson);
             
             action a = decideAction(g);
             
@@ -216,6 +201,9 @@ int main(int argc, char *argv[]) {
                 getKPIpoints(g, counter));
          counter++;
       }
+      printPlayerStats(g, 1);
+      printPlayerStats(g, 2);
+      printPlayerStats(g, 3);
       printLineBreak();
       
       disposeGame(g);
@@ -270,6 +258,26 @@ void randomDice(int dice[]) {
       dice[diceIndex] = totalRoll;
       diceIndex++;
    }
+}
+
+void printPlayerStats(Game g, int turnPerson) {
+   printf("Stats for %c:\n", turnPerson + UNI_CHAR_NAME);
+   printf("KPIs: %d\n", getKPIpoints(g, turnPerson));
+   printf("ARCs: %d\n", getARCs(g, turnPerson));
+   printf("Campuses: %d\n", getCampuses(g, turnPerson));
+   printf("GO8s: %d\n", getGO8s(g, turnPerson));
+   printf("Publications: %d\n", 
+      getPublications(g, turnPerson));
+   printf("Patents: %d\n", 
+      getIPs(g, turnPerson));
+   int discipleIndex = 0;
+   char *discipleNames[] = DISCIPLE_NAMES;
+   while (discipleIndex < NUM_DISCIPLINES) {
+      printf("Type %s: %d\n", discipleNames[discipleIndex],
+         getStudents(g, turnPerson, discipleIndex));
+      discipleIndex++;
+   } 
+   printf("\n");
 }
 
 // return a number between 1...DICE_FACES 
